@@ -1,9 +1,12 @@
+"""Debug version"""
 from gpiozero import Button
 from picamera import PiCamera
 from signal import pause
 import subprocess
 import time
-
+import logging, sys
+logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
+logging.debug("Starting")
 BACKDIR = "/home/pi/HQC-case-hack/images"
 DATADIR = "/home/pi/Pictures"
 # Adafruit TFT buttons
@@ -18,6 +21,7 @@ b_ext = Button(12)
 video = False
 burst = False
 
+logging.debug("connecting to camera")
 camera = PiCamera()
 # Limit preview window size to reveal button labels on screen background
 camera.start_preview(fullscreen=False, window=(0, 10, 580, 480))
@@ -25,6 +29,7 @@ prev_active = True
 
 def set_backgrounds(back):
     """Calls the pcmanfm command to change the desktop wallpaper."""
+    logging.debug("Changing background to " + back)
     bfile = BACKDIR + "/panel_" + back + ".jpg"
     subprocess.call("pcmanfm --display :0 --set-wallpaper " + bfile, shell = True)
 
@@ -37,15 +42,18 @@ def video_mode():
     if video:
         video = False
         burst = False
+        ("video mode off")
         set_backgrounds("inactive")
     else:
         video = True
         burst = False
+        logging.debug("video mode on")
         set_backgrounds("video")
 
 def byebye():
     """Run when a button is pressed: Shuts down the Raspberry Pi"""
     set_backgrounds("halt")
+    logging.debug("halting")
     subprocess.call("sudo nohup shutdown -h now", shell=True)
 
 def blank():
@@ -53,10 +61,12 @@ def blank():
     global prev_active
     global camera
     if prev_active:
+        logging.debug("blanking")
         camera.stop_preview()
         prev_active = False
         subprocess.call("xset -display :0 dpms force off", shell=True)
     else:
+        logging.debug("un-blanking")
         camera.start_preview(fullscreen=False, window=(0, 10, 580, 480))
         subprocess.call("xset -display :0 dpms force on", shell=True)
         prev_active = True
@@ -69,9 +79,11 @@ def burst_mode():
         burst = False
         video = False
         set_backgrounds("inactive")
+        logging.debug("burst mode off")
     else:
         burst = True
         video = False
+        logging.debug("burst mode on")
         set_backgrounds("burst")
 
 def take_photo():
@@ -81,6 +93,7 @@ def take_photo():
     blank()
     camera.close()  # Closes PiCamera connection
     if video:  # take a 10 second video
+        logging.debug("starting video")
         filename = DATADIR + "/vid" + str(time.strftime("%Y%m%d-%H%M%S"))+".h264"
         subprocess.call(["raspivid",
                          "-t", "10000",
@@ -89,8 +102,10 @@ def take_photo():
                          "-vs",
                          "-p", "0,10,580,480",
                          "-o", filename])
+        logging.debug("finished video")
     else:
         if burst:  # Take 10 rapid still images
+            logging.debug("taking burst")
             subprocess.call(["raspistill",
                              "-t", "8500",
                              "-tl", "850",
@@ -98,8 +113,10 @@ def take_photo():
                              "-p", "0,10,580,480",
                              "-bm",
                              "-dt"])
+            logging.debug("finished burst")
 
         else:  # Take a single still image
+            logging.debug("taking still")
             filename = DATADIR + "/img" + str(time.strftime("%Y%m%d-%H%M%S"))+".jpg"
             subprocess.call(["raspistill",
                              "-o", filename,
